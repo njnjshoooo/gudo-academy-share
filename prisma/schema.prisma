@@ -1,0 +1,430 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== 使用者 =====
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String?
+  name          String
+  phone         String?
+  role          UserRole  @default(CUSTOMER)
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  ambassador Ambassador?
+  orders     Order[]
+  addresses  Address[]
+  sessions   Session[]
+  accounts   Account[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  CUSTOMER
+  AMBASSADOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ===== 推廣大使 =====
+model Ambassador {
+  id              String           @id @default(cuid())
+  userId          String           @unique
+  user            User             @relation(fields: [userId], references: [id])
+  referralCode    String           @unique
+  status          AmbassadorStatus @default(PENDING)
+  rejectionReason String?
+
+  realName       String
+  idNumber       String
+  birthDate      DateTime
+  registeredAddr String
+  contactAddr    String
+  idCardFrontUrl String
+  idCardBackUrl  String
+
+  bankCode        String
+  bankBranch      String
+  bankAccount     String
+  bankAccountName String
+  bankBookUrl     String
+
+  totalEarnings     Decimal @default(0) @db.Decimal(12, 2)
+  pendingEarnings   Decimal @default(0) @db.Decimal(12, 2)
+  availableEarnings Decimal @default(0) @db.Decimal(12, 2)
+  paidEarnings      Decimal @default(0) @db.Decimal(12, 2)
+
+  approvedAt DateTime?
+  approvedBy String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  clicks      ReferralClick[]
+  orders      Order[]
+  commissions Commission[]
+  withdrawals Withdrawal[]
+  templates   ContentTemplate[]
+
+  @@map("ambassadors")
+}
+
+enum AmbassadorStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  SUSPENDED
+}
+
+// ===== 商品分類 =====
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  parentId  String?
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+  sortOrder Int        @default(0)
+  isActive  Boolean    @default(true)
+
+  products ProductCategory[]
+
+  @@map("categories")
+}
+
+// ===== 商品 =====
+model Product {
+  id               String  @id @default(cuid())
+  sku              String  @unique
+  name             String
+  slug             String  @unique
+  description      String  @db.Text
+  shortDescription String?
+
+  originalPrice      Decimal  @db.Decimal(10, 2)
+  salePrice          Decimal  @db.Decimal(10, 2)
+  ambassadorDiscount Decimal? @db.Decimal(10, 2)
+
+  stock          Int     @default(0)
+  allowBackorder Boolean @default(false)
+
+  mainImage String
+  gallery   String[]
+
+  commissionType  CommissionType?
+  commissionValue Decimal?        @db.Decimal(10, 2)
+
+  defaultShareText String? @db.Text
+
+  metaTitle       String?
+  metaDescription String?
+
+  isActive   Boolean  @default(true)
+  isFeatured Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  categories ProductCategory[]
+  variants   ProductVariant[]
+  orderItems OrderItem[]
+  clicks     ReferralClick[]
+  templates  ContentTemplate[]
+
+  @@map("products")
+}
+
+enum CommissionType {
+  PERCENTAGE
+  FIXED
+}
+
+model ProductCategory {
+  productId  String
+  categoryId String
+  product    Product  @relation(fields: [productId], references: [id])
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  @@id([productId, categoryId])
+  @@map("product_categories")
+}
+
+model ProductVariant {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  name      String
+  sku       String   @unique
+  price     Decimal  @db.Decimal(10, 2)
+  stock     Int      @default(0)
+  attributes Json?
+
+  orderItems OrderItem[]
+
+  @@map("product_variants")
+}
+
+// ===== 推廣連結點擊追蹤 =====
+model ReferralClick {
+  id           String     @id @default(cuid())
+  ambassadorId String
+  ambassador   Ambassador @relation(fields: [ambassadorId], references: [id])
+  productId    String?
+  product      Product?   @relation(fields: [productId], references: [id])
+
+  ip               String
+  userAgent        String?
+  referer          String?
+  utmSource        String?
+  utmMedium        String?
+  utmCampaign      String?
+  sessionId        String
+  convertedToOrder Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([ambassadorId, createdAt])
+  @@index([sessionId])
+  @@map("referral_clicks")
+}
+
+// ===== 訂單 =====
+model Order {
+  id          String @id @default(cuid())
+  orderNumber String @unique
+
+  userId        String?
+  user          User?   @relation(fields: [userId], references: [id])
+  customerName  String
+  customerEmail String
+  customerPhone String
+
+  shippingAddress String
+  shippingMethod  String  @default("digital")
+  trackingNumber  String?
+
+  ambassadorId String?
+  ambassador   Ambassador? @relation(fields: [ambassadorId], references: [id])
+  referralCode String?
+
+  subtotal    Decimal @db.Decimal(10, 2)
+  discount    Decimal @default(0) @db.Decimal(10, 2)
+  shippingFee Decimal @default(0) @db.Decimal(10, 2)
+  total       Decimal @db.Decimal(10, 2)
+
+  paymentMethod String
+  paymentStatus PaymentStatus @default(PENDING)
+  paidAt        DateTime?
+  ecpayTradeNo  String?
+
+  status OrderStatus @default(PENDING)
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items      OrderItem[]
+  commission Commission?
+
+  @@index([referralCode])
+  @@index([ambassadorId])
+  @@map("orders")
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  SHIPPED
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model OrderItem {
+  id          String         @id @default(cuid())
+  orderId     String
+  order       Order          @relation(fields: [orderId], references: [id])
+  productId   String
+  product     Product        @relation(fields: [productId], references: [id])
+  variantId   String?
+  variant     ProductVariant? @relation(fields: [variantId], references: [id])
+  productName String
+  unitPrice   Decimal        @db.Decimal(10, 2)
+  quantity    Int
+  subtotal    Decimal        @db.Decimal(10, 2)
+
+  @@map("order_items")
+}
+
+// ===== 分潤紀錄 =====
+model Commission {
+  id           String     @id @default(cuid())
+  orderId      String     @unique
+  order        Order      @relation(fields: [orderId], references: [id])
+  ambassadorId String
+  ambassador   Ambassador @relation(fields: [ambassadorId], references: [id])
+
+  baseAmount Decimal  @db.Decimal(10, 2)
+  rate       Decimal? @db.Decimal(5, 4)
+  amount     Decimal  @db.Decimal(10, 2)
+
+  status       CommissionStatus @default(LOCKED)
+  unlockAt     DateTime
+  withdrawalId String?
+  withdrawal   Withdrawal?      @relation(fields: [withdrawalId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([unlockAt])
+  @@map("commissions")
+}
+
+enum CommissionStatus {
+  LOCKED
+  AVAILABLE
+  REQUESTED
+  PAID
+  CANCELLED
+}
+
+// ===== 請款 =====
+model Withdrawal {
+  id               String           @id @default(cuid())
+  withdrawalNumber String           @unique
+  ambassadorId     String
+  ambassador       Ambassador       @relation(fields: [ambassadorId], references: [id])
+  amount           Decimal          @db.Decimal(10, 2)
+  taxAmount        Decimal          @default(0) @db.Decimal(10, 2)
+  netAmount        Decimal          @db.Decimal(10, 2)
+  status           WithdrawalStatus @default(PENDING)
+
+  bankCode        String
+  bankAccount     String
+  bankAccountName String
+
+  notes           String?
+  paidAt          DateTime?
+  paymentProofUrl String?
+
+  requestedAt DateTime @default(now())
+  processedBy String?
+
+  commissions Commission[]
+
+  @@map("withdrawals")
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}
+
+// ===== 文案範本 =====
+model ContentTemplate {
+  id           String      @id @default(cuid())
+  ambassadorId String?
+  ambassador   Ambassador? @relation(fields: [ambassadorId], references: [id])
+  productId    String?
+  product      Product?    @relation(fields: [productId], references: [id])
+  name         String
+  content      String      @db.Text
+  isDefault    Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+
+  @@map("content_templates")
+}
+
+// ===== 地址簿 =====
+model Address {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+  recipient String
+  phone     String
+  address   String
+  isDefault Boolean @default(false)
+
+  @@map("addresses")
+}
+
+// ===== 系統設定 =====
+model SystemSetting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+// ===== 操作紀錄 =====
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  targetType String?
+  targetId   String?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}

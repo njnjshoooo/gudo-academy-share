@@ -72,6 +72,20 @@ export function CheckoutForm() {
         }),
       })
 
+      const contentType = res.headers.get('content-type') || ''
+
+      // ECPay 模式：後端回傳 HTML 自動提交表單
+      if (contentType.includes('text/html')) {
+        const orderNumber = res.headers.get('x-order-number') || ''
+        const html = await res.text()
+        clearCart()
+        // 在新視窗開啟付款頁（ECPay 自動 POST）
+        const blob = new Blob([html], { type: 'text/html' })
+        const url = URL.createObjectURL(blob)
+        window.location.href = url
+        return
+      }
+
       const result = await res.json()
 
       if (!res.ok) {
@@ -82,12 +96,7 @@ export function CheckoutForm() {
       // 清空購物車
       clearCart()
 
-      // 如有 ECPay 付款 URL 就導向
-      if (result.paymentUrl) {
-        window.location.href = result.paymentUrl
-      } else {
-        window.location.href = `/order/${result.orderNumber}?success=1`
-      }
+      window.location.href = `/order/${result.orderNumber}?success=1`
     } catch {
       alert('網路錯誤，請稍後再試')
     } finally {

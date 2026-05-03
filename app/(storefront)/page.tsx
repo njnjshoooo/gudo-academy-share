@@ -93,7 +93,7 @@ export default function HomePage() {
             {featuredCourses.map((course) => (
               <Link key={course.slug} href={`/product/${course.slug}`} className="group">
                 <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                  <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
+                  <div className="relative aspect-square overflow-hidden bg-gray-100">
                     <img
                       src={course.image}
                       alt={course.name}

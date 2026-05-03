@@ -33,18 +33,22 @@ export function AmbassadorSidebar() {
   return (
     <aside
       className={cn(
-        'bg-white border-r border-gray-100 flex flex-col transition-all duration-200',
+        'hidden lg:flex bg-white border-r border-gray-100 flex-col transition-all duration-200',
         collapsed ? 'w-16' : 'w-56'
       )}
     >
       {/* Logo */}
       <div className={cn('flex items-center h-16 px-4 border-b border-gray-100', collapsed && 'justify-center')}>
         {!collapsed && (
-          <Link href="/" className="font-bold text-sky-600 text-sm">
-            ✨ GUDO Academy
+          <Link href="/" className="flex items-center">
+            <img src="/logo.webp" alt="居家整聊室" className="h-8 w-auto" />
           </Link>
         )}
-        {collapsed && <span className="text-xl">✨</span>}
+        {collapsed && (
+          <Link href="/">
+            <img src="/logo.webp" alt="居家整聊室" className="h-7 w-7 object-contain" />
+          </Link>
+        )}
       </div>
 
       {/* Nav */}

@@ -1,6 +1,9 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// 懶載入：避免建置時因未設定 RESEND_API_KEY 而報錯
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY ?? 're_placeholder_not_configured')
+}
 const FROM = process.env.EMAIL_FROM || 'noreply@gudo-academy.com'
 const SITE_NAME = '居家整聊室'
 
@@ -78,7 +81,7 @@ export async function sendOrderConfirmation(params: {
     `
   )
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to: params.to,
     subject: `【${SITE_NAME}】訂單確認 #${params.orderNumber}`,
@@ -121,7 +124,7 @@ export async function sendPaymentSuccessEmail(params: {
     `
   )
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to: params.to,
     subject: `【${SITE_NAME}】付款成功 #${params.orderNumber}`,
@@ -152,7 +155,7 @@ export async function sendKycApprovedEmail(params: {
     `
   )
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to: params.to,
     subject: `【${SITE_NAME}】恭喜！推廣大使資格審核通過`,
@@ -183,7 +186,7 @@ export async function sendKycRejectedEmail(params: {
     `
   )
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to: params.to,
     subject: `【${SITE_NAME}】KYC 審核結果通知`,
@@ -223,7 +226,7 @@ export async function sendWithdrawalProcessedEmail(params: {
     `
   )
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to: params.to,
     subject: `【${SITE_NAME}】請款申請 ${statusText} #${params.withdrawalNumber}`,

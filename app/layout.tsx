@@ -15,15 +15,18 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: 'GUDO Academy｜整聊學院',
-    template: '%s | GUDO Academy',
+    default: '居家整聊室｜整聊認證課程',
+    template: '%s | 居家整聊室',
   },
-  description: '整聊認證課程全系列，幫助你透過整理與溝通改變生活',
-  keywords: ['整聊', '整理', '收納', '課程', '推廣大使'],
+  description: '整聊認證課程全系列｜初階、中階、高階整聊師培訓，人生整聊學院、軟裝服務，幫助你透過整理與溝通改變生活。',
+  keywords: ['整聊', '整理', '收納', '整聊師', '認證課程', '推廣大使', '居家整聊室'],
+  icons: {
+    icon: '/favicon.ico',
+  },
   openGraph: {
     type: 'website',
     locale: 'zh_TW',
-    siteName: 'GUDO Academy｜整聊學院',
+    siteName: '居家整聊室',
   },
 }
 

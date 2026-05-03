@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 const navLinks = [
-  { href: '/tidylist', label: '課程總覽' },
-  { href: '/about', label: '關於我們' },
-  { href: '/ambassador', label: '成為推廣大使' },
+  { href: '/tidylist', label: '整聊課程' },
+  { href: '/tidylist?category=certification', label: '認證課程' },
+  { href: '/register', label: '成為推廣大使' },
 ]
 
 export function Navbar() {
@@ -23,9 +23,8 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 font-bold text-xl text-sky-600">
-            <span className="text-2xl">✨</span>
-            <span>GUDO Academy</span>
+          <Link href="/" className="flex items-center">
+            <img src="/logo.webp" alt="居家整聊室" className="h-10 w-auto" />
           </Link>
 
           {/* Desktop Nav */}

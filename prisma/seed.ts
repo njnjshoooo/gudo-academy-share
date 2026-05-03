@@ -58,51 +58,146 @@ async function main() {
   })
   console.log('✅ 大使帳號：demo@gudo-academy.com / demo1234 (代碼: ANGIE001)')
 
-  // 商品分類
-  const categories = await Promise.all([
-    prisma.category.upsert({ where: { slug: 'basic' }, update: {}, create: { name: '初階課程', slug: 'basic' } }),
-    prisma.category.upsert({ where: { slug: 'intermediate' }, update: {}, create: { name: '中階課程', slug: 'intermediate' } }),
-    prisma.category.upsert({ where: { slug: 'advanced' }, update: {}, create: { name: '高階課程', slug: 'advanced' } }),
-    prisma.category.upsert({ where: { slug: 'bootcamp' }, update: {}, create: { name: '培訓營', slug: 'bootcamp' } }),
-    prisma.category.upsert({ where: { slug: 'soft-furnishing' }, update: {}, create: { name: '軟裝整理', slug: 'soft-furnishing' } }),
-  ])
+  // 清除舊商品資料（保留使用者）
+  await prisma.productCategory.deleteMany({})
+  await prisma.product.deleteMany({})
+  await prisma.category.deleteMany({})
+  console.log('🗑️ 舊商品資料已清除')
+
+  // 商品分類（對應真實課程）
+  const catBeginner    = await prisma.category.create({ data: { name: '初階整聊', slug: 'beginner', sortOrder: 1 } })
+  const catInter       = await prisma.category.create({ data: { name: '中階整聊', slug: 'intermediate', sortOrder: 2 } })
+  const catCert        = await prisma.category.create({ data: { name: '整聊師認證課程', slug: 'certification', sortOrder: 3 } })
+  const catLifeAcademy = await prisma.category.create({ data: { name: '人生整聊學院', slug: 'life-academy', sortOrder: 4 } })
+  const catSoftDeco    = await prisma.category.create({ data: { name: '軟裝服務', slug: 'soft-deco', sortOrder: 5 } })
   console.log('✅ 商品分類已建立')
 
-  // 商品（使用 schema 中的欄位名稱）
+  // 真實課程資料
   const productsData = [
-    { sku: 'BASIC-001', name: '整聊初階課程', slug: 'tidylist-basic', salePrice: 3980, originalPrice: 5980, categorySlug: 'basic',
-      description: '適合剛開始學習整理術的朋友，透過整聊方法論建立正確整理觀念，讓家裡煥然一新。' },
-    { sku: 'INTER-001', name: '整聊中階課程', slug: 'tidylist-intermediate', salePrice: 6980, originalPrice: 9800, categorySlug: 'intermediate',
-      description: '深入學習進階整理技巧，從個人空間延伸到全家共用區域。' },
-    { sku: 'ADV-001', name: '整聊高階課程', slug: 'tidylist-advanced', salePrice: 12800, originalPrice: 16800, categorySlug: 'advanced',
-      description: '全面掌握整聊整理術，學習如何教導家人一起維持整潔。' },
-    { sku: 'BOOT-B01', name: '整聊培訓營（基礎班）', slug: 'tidylist-bootcamp-basic', salePrice: 18800, originalPrice: 24000, categorySlug: 'bootcamp',
-      description: '3天2夜密集訓練，小班制互動教學。' },
-    { sku: 'BOOT-A01', name: '整聊培訓營（進階班）', slug: 'tidylist-bootcamp-advanced', salePrice: 28000, originalPrice: 36000, categorySlug: 'bootcamp',
-      description: '取得整聊認證資格，開啟整理諮詢副業。' },
-    { sku: 'SOFT-001', name: '整聊軟裝整理班', slug: 'tidylist-soft-furnishing', salePrice: 10900, originalPrice: 14900, categorySlug: 'soft-furnishing',
-      description: '學習透過整理與軟裝搭配提升家的質感。' },
+    {
+      sku: 'L1-001', slug: 'course-l1',
+      name: '整聊師培訓課程 L1初階實戰篇',
+      description: '從零開始學整理，建立整聊師的核心基礎技能，適合想改變生活空間的你。',
+      salePrice: 4000, originalPrice: 4000,
+      mainImage: '/images/products/course-l1.png',
+      commissionType: 'PERCENTAGE', commissionValue: 10,
+      isActive: true, stock: 20,
+      categoryId: catBeginner.id,
+    },
+    {
+      sku: 'L2-001', slug: 'course-l2',
+      name: '整聊師培訓課程 L2中階修煉篇',
+      description: '深化整理技法與心法，學習如何協助他人建立系統化的整理習慣。',
+      salePrice: 16000, originalPrice: 16000,
+      mainImage: '/images/products/course-l2.png',
+      commissionType: 'PERCENTAGE', commissionValue: 10,
+      isActive: true, stock: 15,
+      categoryId: catInter.id,
+    },
+    {
+      sku: 'L3-001', slug: 'course-l3',
+      name: '整聊師培訓課程 L3榮耀授袍簽約',
+      description: '完成中階課程的最終認證，正式取得整聊師資格，成為認證整聊師。',
+      salePrice: 2000, originalPrice: 2000,
+      mainImage: '/images/products/course-l3.png',
+      commissionType: 'PERCENTAGE', commissionValue: 10,
+      isActive: true, stock: 20,
+      categoryId: catInter.id,
+    },
+    {
+      sku: 'BUNDLE-L1L2', slug: 'course-bundle-l1l2',
+      name: '【初＋中】整聊技法心法一次學',
+      description: '初階 + 中階課程套組，一次學完整聊技法與心法，超值組合價更划算。',
+      salePrice: 18000, originalPrice: 20000,
+      mainImage: '/images/products/course-bundle-l1l2.png',
+      commissionType: 'PERCENTAGE', commissionValue: 10,
+      isActive: true, stock: 15,
+      categoryId: catInter.id,
+    },
+    {
+      sku: 'BUNDLE-FULL', slug: 'course-bundle-full',
+      name: '【初＋中＋認證測驗】直接成為整聊師',
+      description: '初階＋中階＋認證測驗三合一，最快捷徑直接取得整聊師認證。',
+      salePrice: 20000, originalPrice: 22000,
+      mainImage: '/images/products/course-bundle-full.png',
+      commissionType: 'PERCENTAGE', commissionValue: 10,
+      isActive: true, stock: 15,
+      categoryId: catCert.id,
+    },
+    {
+      sku: 'CAMP-001', slug: 'course-training-camp',
+      name: '整聊實作訓練營｜最硬派整理訓練課',
+      description: '最紮實的整理實作訓練，透過密集實戰演練，讓整理能力脫胎換骨。',
+      salePrice: 20000, originalPrice: 20000,
+      mainImage: '/images/products/course-training-camp.png',
+      commissionType: 'PERCENTAGE', commissionValue: 10,
+      isActive: true, stock: 10,
+      categoryId: catInter.id,
+    },
+    {
+      sku: 'MOVE-001', slug: 'course-moving',
+      name: '搬家手實作1日課',
+      description: '一日密集課程，學習搬家整理的實戰技巧，讓搬家不再是噩夢。',
+      salePrice: 3000, originalPrice: 3000,
+      mainImage: '/images/products/course-moving.png',
+      commissionType: 'PERCENTAGE', commissionValue: 10,
+      isActive: true, stock: 0,
+      categoryId: catBeginner.id,
+    },
+    {
+      sku: 'AMB-2025', slug: 'course-ambassador-2025',
+      name: '【整聊高階】2025品牌大使培訓營',
+      description: '三天兩夜密集培訓，完整品牌大使技能養成，開啟整聊師資格與副業收入。',
+      salePrice: 27000, originalPrice: 35000,
+      mainImage: '/images/products/course-ambassador-2025.png',
+      commissionType: 'FIXED', commissionValue: 2000,
+      isActive: true, stock: 12,
+      categoryId: catCert.id,
+    },
+    {
+      sku: 'SOFT-001', slug: 'course-soft-deco',
+      name: '【整聊高階】軟裝師認證課程',
+      description: '成為軟裝師，從整理延伸到空間佈置設計，打造質感生活空間的完整訓練。',
+      salePrice: 30000, originalPrice: 30000,
+      mainImage: '/images/products/course-soft-deco.jpg',
+      commissionType: 'FIXED', commissionValue: 3000,
+      isActive: true, stock: 0,
+      categoryId: catSoftDeco.id,
+    },
+    {
+      sku: 'FASHION-001', slug: 'course-fashion',
+      name: '穿搭諮詢師實戰班',
+      description: '從衣櫃整理到穿搭風格建立，成為專業穿搭諮詢師的完整訓練課程。',
+      salePrice: 12000, originalPrice: 12000,
+      mainImage: '/images/products/course-fashion.png',
+      commissionType: 'PERCENTAGE', commissionValue: 10,
+      isActive: true, stock: 0,
+      categoryId: catLifeAcademy.id,
+    },
+    {
+      sku: 'FASHION-ONLINE-001', slug: 'course-fashion-online',
+      name: '【穿搭線上體驗課】衣櫃斷捨離！打造美好穿搭人生',
+      description: '線上課程，學習衣櫃斷捨離與穿搭搭配技巧，小預算打造高質感衣著。',
+      salePrice: 1280, originalPrice: 2200,
+      mainImage: '/images/products/course-fashion-online.png',
+      commissionType: 'FIXED', commissionValue: 200,
+      isActive: true, stock: 50,
+      categoryId: catLifeAcademy.id,
+    },
   ]
 
   for (const p of productsData) {
-    const { categorySlug, ...data } = p
-    const cat = categories.find(c => c.slug === categorySlug)
-    await prisma.product.upsert({
-      where: { slug: p.slug },
-      update: {},
-      create: {
+    const { categoryId, ...data } = p
+    await prisma.product.create({
+      data: {
         ...data,
-        mainImage: `/images/products/${p.slug}.jpg`,
-        commissionType: 'PERCENTAGE',
-        commissionValue: 10,
-        defaultShareText: `推薦整聊課程給你！\n{referralLink}`,
+        defaultShareText: `我在居家整聊室找到這堂好課！\n{referralLink}`,
         allowBackorder: false,
-        isActive: true,
-        categories: cat ? { create: { categoryId: cat.id } } : undefined,
+        categories: { create: { categoryId } },
       },
     })
   }
-  console.log('✅ 6 個示範商品已建立')
+  console.log(`✅ ${productsData.length} 個課程已建立`)
 
   console.log('\n🎉 種子資料建立完成！')
   console.log('管理員：admin@gudo-academy.com / admin1234')

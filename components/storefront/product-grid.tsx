@@ -54,16 +54,18 @@ function ProductCard({ product }: { product: MockProduct }) {
     <Link href={`/product/${product.slug}`} className="group">
       <div className="bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-sky-200 hover:shadow-md transition-all duration-200">
         {/* Image */}
-        <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-sky-50 to-blue-100">
-          {/* Placeholder gradient (replace with actual Image when images are available) */}
-          <div className="w-full h-full flex items-center justify-center text-4xl">
-            {category?.slug === 'beginner' && '📗'}
-            {category?.slug === 'intermediate' && '📘'}
-            {category?.slug === 'advanced' && '📙'}
-            {category?.slug === 'life-coaching' && '🌟'}
-            {category?.slug === 'interior' && '🏠'}
-            {!category && '📚'}
-          </div>
+        <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
+          {product.mainImage ? (
+            <img
+              src={product.mainImage}
+              alt={product.name}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-4xl bg-gradient-to-br from-sky-50 to-blue-100">
+              📚
+            </div>
+          )}
 
           {/* Out of stock overlay */}
           {isOutOfStock && (

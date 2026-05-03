@@ -103,14 +103,10 @@ function SortSelect({ currentSort }: { currentSort?: string }) {
   ]
 
   return (
-    <form>
+    <form method="get">
       <select
         name="sort"
         defaultValue={currentSort || ''}
-        onChange={(e) => {
-          const form = e.target.form
-          if (form) form.requestSubmit()
-        }}
         className="text-sm border border-gray-200 rounded-md px-3 py-1.5 bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
       >
         {options.map((opt) => (
@@ -119,6 +115,9 @@ function SortSelect({ currentSort }: { currentSort?: string }) {
           </option>
         ))}
       </select>
+      <button type="submit" className="ml-2 text-sm px-3 py-1.5 bg-gray-100 rounded-md hover:bg-gray-200">
+        套用
+      </button>
     </form>
   )
 }

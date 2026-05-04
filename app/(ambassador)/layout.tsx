@@ -1,8 +1,20 @@
+import { redirect } from 'next/navigation'
+import { auth } from '@/lib/auth'
 import { AmbassadorSidebar } from '@/components/ambassador/sidebar'
 import { AmbassadorHeader } from '@/components/ambassador/header'
 import { AmbassadorMobileNav } from '@/components/ambassador/mobile-nav'
 
-export default function AmbassadorLayout({ children }: { children: React.ReactNode }) {
+export default async function AmbassadorLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth()
+
+  if (!session?.user) {
+    redirect('/login')
+  }
+
+  if ((session.user as any).role === 'ADMIN') {
+    redirect('/admin/dashboard')
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Desktop sidebar (hidden on mobile) */}

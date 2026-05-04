@@ -1,41 +1,68 @@
+import { prisma } from '@/lib/db'
 import { formatCurrency } from '@/lib/utils'
 import Link from 'next/link'
-import { ShoppingBag, Users, TrendingUp, Clock, AlertCircle, ArrowRight, DollarSign } from 'lucide-react'
+import { ShoppingBag, Users, TrendingUp, AlertCircle, ArrowRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: '管理員儀表板' }
 
-// Mock data
-const stats = {
-  todayRevenue: 65000,
-  todayOrders: 3,
-  newAmbassadors: 2,
-  totalAmbassadors: 48,
-  pendingKyc: 4,
-  pendingOrders: 7,
-  pendingWithdrawals: 3,
-}
+export default async function AdminDashboardPage() {
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
 
-const pendingKycList = [
-  { id: '1', name: 'Wang Xiao Ming', email: 'wang@example.com', submittedAt: '2026-05-03' },
-  { id: '2', name: 'Chen Li', email: 'chen@example.com', submittedAt: '2026-05-02' },
-  { id: '3', name: 'Lin Fang', email: 'lin@example.com', submittedAt: '2026-05-01' },
-  { id: '4', name: 'Zhang Wei', email: 'zhang@example.com', submittedAt: '2026-04-30' },
-]
+  const [
+    todayOrders,
+    todayRevenue,
+    totalAmbassadors,
+    newAmbassadorsToday,
+    pendingKyc,
+    pendingWithdrawals,
+    recentPendingKyc,
+    recentOrders,
+  ] = await Promise.all([
+    prisma.order.count({ where: { createdAt: { gte: startOfToday }, paymentStatus: 'PAID' } }),
+    prisma.order.aggregate({
+      where: { createdAt: { gte: startOfToday }, paymentStatus: 'PAID' },
+      _sum: { total: true },
+    }),
+    prisma.ambassador.count({ where: { status: 'ACTIVE' } }),
+    prisma.ambassador.count({ where: { createdAt: { gte: startOfToday } } }),
+    prisma.ambassador.count({ where: { status: 'PENDING' } }),
+    prisma.withdrawal.count({ where: { status: 'PENDING' } }),
+    prisma.ambassador.findMany({
+      where: { status: 'PENDING' },
+      include: { user: true },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    }),
+    prisma.order.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      include: {
+        items: { take: 1 },
+        commission: true,
+      },
+    }),
+  ])
 
-const recentOrders = [
-  { id: '1', orderNumber: 'ORD20260503001', customerName: '王小明', product: '初階課程', total: 27000, status: 'PAID', ambassador: 'ANGIE001' },
-  { id: '2', orderNumber: 'ORD20260503002', customerName: '陳大明', product: '高階課程', total: 72000, status: 'PAID', ambassador: null },
-  { id: '3', orderNumber: 'ORD20260502003', customerName: '林小芳', product: '中階課程', total: 38000, status: 'COMPLETED', ambassador: 'LILY002' },
-]
+  const stats = {
+    todayRevenue: Number(todayRevenue._sum.total ?? 0),
+    todayOrders,
+    newAmbassadors: newAmbassadorsToday,
+    totalAmbassadors,
+    pendingKyc,
+    pendingWithdrawals,
+  }
 
-export default function AdminDashboardPage() {
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">管理員儀表板</h1>
-        <p className="text-gray-500 text-sm mt-1">{new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        <p className="text-gray-500 text-sm mt-1">
+          {now.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })}
+        </p>
       </div>
 
       {/* Stats Cards */}
@@ -59,10 +86,9 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Pending Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {[
           { label: '待審核 KYC', count: stats.pendingKyc, href: '/admin/ambassadors?status=pending', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
-          { label: '待出貨訂單', count: stats.pendingOrders, href: '/admin/orders?status=paid', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
           { label: '待撥款請款', count: stats.pendingWithdrawals, href: '/admin/withdrawals?status=pending', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200' },
         ].map((item) => (
           <Link
@@ -94,23 +120,27 @@ export default function AdminDashboardPage() {
             </Link>
           </div>
           <div className="divide-y divide-gray-50">
-            {pendingKycList.map((item) => (
-              <div key={item.id} className="flex items-center justify-between px-5 py-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                  <p className="text-xs text-gray-500">{item.email}</p>
+            {recentPendingKyc.length === 0 ? (
+              <p className="text-center text-gray-400 text-sm py-6">目前無待審核申請</p>
+            ) : (
+              recentPendingKyc.map((amb) => (
+                <div key={amb.id} className="flex items-center justify-between px-5 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{amb.realName}</p>
+                    <p className="text-xs text-gray-500">{amb.user.email}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-400">{amb.createdAt.toISOString().slice(0, 10)}</span>
+                    <Link
+                      href={`/admin/ambassadors/${amb.id}`}
+                      className="text-xs bg-sky-50 text-sky-700 hover:bg-sky-100 px-3 py-1.5 rounded-lg font-medium transition-colors"
+                    >
+                      審核
+                    </Link>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-400">{item.submittedAt}</span>
-                  <Link
-                    href={`/admin/ambassadors/${item.id}`}
-                    className="text-xs bg-sky-50 text-sky-700 hover:bg-sky-100 px-3 py-1.5 rounded-lg font-medium transition-colors"
-                  >
-                    審核
-                  </Link>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -123,32 +153,38 @@ export default function AdminDashboardPage() {
             </Link>
           </div>
           <div className="divide-y divide-gray-50">
-            {recentOrders.map((order) => (
-              <div key={order.id} className="px-5 py-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-900">{order.customerName}</span>
-                      {order.ambassador && (
-                        <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded font-mono">
-                          {order.ambassador}
-                        </span>
-                      )}
+            {recentOrders.length === 0 ? (
+              <p className="text-center text-gray-400 text-sm py-6">尚無訂單</p>
+            ) : (
+              recentOrders.map((order) => (
+                <div key={order.id} className="px-5 py-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-900">{order.customerName}</span>
+                        {order.referralCode && (
+                          <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded font-mono">
+                            {order.referralCode}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {order.items[0]?.productName ?? '多項商品'} • {order.orderNumber}
+                      </p>
                     </div>
-                    <p className="text-xs text-gray-500">{order.product} • {order.orderNumber}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-sky-600 text-sm">{formatCurrency(order.total)}</p>
-                    <Badge
-                      variant={order.status === 'COMPLETED' ? 'success' : order.status === 'PAID' ? 'brand' : 'secondary'}
-                      className="text-xs mt-0.5"
-                    >
-                      {order.status === 'COMPLETED' ? '已完成' : '已付款'}
-                    </Badge>
+                    <div className="text-right">
+                      <p className="font-bold text-sky-600 text-sm">{formatCurrency(Number(order.total))}</p>
+                      <Badge
+                        variant={order.status === 'COMPLETED' ? 'success' : order.status === 'PAID' ? 'brand' : 'secondary'}
+                        className="text-xs mt-0.5"
+                      >
+                        {order.status === 'COMPLETED' ? '已完成' : order.status === 'PAID' ? '已付款' : order.status}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

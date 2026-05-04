@@ -2,13 +2,24 @@
 
 import { useState } from 'react'
 import { Copy, Check, ExternalLink, MessageCircle, Share2, X } from 'lucide-react'
-import { MockProduct } from '@/lib/mock-data'
 import { formatCurrency } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
+interface ShareProduct {
+  id: string
+  slug: string
+  name: string
+  salePrice: number
+  originalPrice: number
+  defaultShareText: string
+  commissionType?: string | null
+  commissionValue?: number | null
+  categories: { name: string; slug: string }[]
+}
+
 interface Props {
-  product: MockProduct
+  product: ShareProduct
   referralCode: string
   baseUrl: string
 }

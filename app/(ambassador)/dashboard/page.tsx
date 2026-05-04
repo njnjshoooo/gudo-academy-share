@@ -1,61 +1,84 @@
+import { redirect } from 'next/navigation'
+import { auth } from '@/lib/auth'
+import { prisma } from '@/lib/db'
 import { DashboardStats } from '@/components/ambassador/dashboard-stats'
 import { RecentOrders } from '@/components/ambassador/recent-orders'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: '大使儀表板' }
 
-// Mock data for development
-const mockStats = {
-  monthlyEarnings: 12500,
-  totalEarnings: 87600,
-  availableEarnings: 18200,
-  pendingEarnings: 4800,
-  monthlyClicks: 342,
-  monthlyConversions: 7,
-  conversionRate: 2.05,
-  referralCode: 'ANGIE001',
+const ORDER_STATUS_MAP: Record<string, string> = {
+  PENDING: '待付款', PAID: '已付款', PROCESSING: '處理中',
+  SHIPPED: '已出貨', COMPLETED: '已完成', CANCELLED: '已取消', REFUNDED: '已退款',
+}
+const COMMISSION_STATUS_MAP: Record<string, string> = {
+  LOCKED: '凍結中', AVAILABLE: '可請款', REQUESTED: '已申請',
+  PAID: '已撥款', CANCELLED: '已取消',
 }
 
-const mockOrders = [
-  {
-    id: '1',
-    orderNumber: 'ORD20260503001',
-    createdAt: '2026-05-03',
-    productName: '整聊初階認證課程',
-    customerMasked: '王**',
-    orderTotal: 27000,
-    commissionRate: 10,
-    commissionAmount: 2700,
-    orderStatus: '已完成',
-    commissionStatus: '可請款',
-  },
-  {
-    id: '2',
-    orderNumber: 'ORD20260428002',
-    createdAt: '2026-04-28',
-    productName: '整聊中階進階課程',
-    customerMasked: '陳**',
-    orderTotal: 38000,
-    commissionRate: 12,
-    commissionAmount: 4560,
-    orderStatus: '已完成',
-    commissionStatus: '凍結中',
-  },
-  {
-    id: '3',
-    orderNumber: 'ORD20260420003',
-    createdAt: '2026-04-20',
-    productName: '整聊高階師資培訓',
-    customerMasked: '李**',
-    orderTotal: 72000,
-    commissionRate: 0,
-    commissionAmount: 5000,
-    orderStatus: '已完成',
-    commissionStatus: '可請款',
-  },
-]
+export default async function DashboardPage() {
+  const session = await auth()
+  if (!session?.user) redirect('/login')
 
-export default function DashboardPage() {
+  const ambassador = await prisma.ambassador.findUnique({
+    where: { userId: (session.user as any).id },
+    include: {
+      commissions: {
+        include: { order: { include: { items: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      },
+    },
+  })
+
+  if (!ambassador) redirect('/ambassador/kyc')
+
+  const now = new Date()
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+
+  const [monthlyCommissions, monthlyClicks, monthlyConversions] = await Promise.all([
+    prisma.commission.findMany({
+      where: { ambassadorId: ambassador.id, createdAt: { gte: startOfMonth } },
+    }),
+    prisma.referralClick.count({
+      where: { ambassadorId: ambassador.id, createdAt: { gte: startOfMonth } },
+    }),
+    prisma.referralClick.count({
+      where: { ambassadorId: ambassador.id, createdAt: { gte: startOfMonth }, convertedToOrder: true },
+    }),
+  ])
+
+  const monthlyEarnings = monthlyCommissions.reduce((sum, c) => sum + Number(c.amount), 0)
+
+  const stats = {
+    monthlyEarnings,
+    totalEarnings: Number(ambassador.totalEarnings),
+    availableEarnings: Number(ambassador.availableEarnings),
+    pendingEarnings: Number(ambassador.pendingEarnings),
+    monthlyClicks,
+    monthlyConversions,
+    conversionRate: monthlyClicks > 0 ? (monthlyConversions / monthlyClicks) * 100 : 0,
+  }
+
+  const recentOrders = ambassador.commissions.slice(0, 5).map((c) => {
+    const order = c.order
+    const firstItem = order.items[0]
+    const name = order.customerName
+    const masked = name.length >= 2 ? name[0] + '**' : name + '**'
+    return {
+      id: c.id,
+      orderNumber: order.orderNumber,
+      createdAt: order.createdAt.toISOString().slice(0, 10),
+      productName: firstItem?.productName ?? '（多項商品）',
+      customerMasked: masked,
+      orderTotal: Number(order.total),
+      commissionRate: c.rate ? Number(c.rate) * 100 : 0,
+      commissionAmount: Number(c.amount),
+      orderStatus: ORDER_STATUS_MAP[order.status] ?? order.status,
+      commissionStatus: COMMISSION_STATUS_MAP[c.status] ?? c.status,
+    }
+  })
+
   return (
     <div className="space-y-6">
       <div>
@@ -63,13 +86,12 @@ export default function DashboardPage() {
         <p className="text-gray-500 text-sm mt-1">
           推廣代碼：
           <span className="font-mono font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
-            {mockStats.referralCode}
+            {ambassador.referralCode}
           </span>
         </p>
       </div>
-
-      <DashboardStats stats={mockStats} />
-      <RecentOrders orders={mockOrders} />
+      <DashboardStats stats={stats} />
+      <RecentOrders orders={recentOrders} />
     </div>
   )
 }

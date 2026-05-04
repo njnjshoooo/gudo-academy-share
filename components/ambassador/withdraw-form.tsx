@@ -8,33 +8,70 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AlertCircle, CheckCircle, Banknote, Clock, ShieldCheck } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
-const AVAILABLE_BALANCE = 3030   // mock: sum of CONFIRMED commissions
 const MIN_WITHDRAWAL = 1000
 const TAX_THRESHOLD = 1000
 const TAX_RATE = 0.05
 
-const withdrawSchema = z.object({
-  amount: z
-    .number()
-    .min(MIN_WITHDRAWAL, `最低請款金額為 NT$ ${MIN_WITHDRAWAL.toLocaleString()}`)
-    .max(AVAILABLE_BALANCE, `超過可用餘額 NT$ ${AVAILABLE_BALANCE.toLocaleString()}`),
-  bankCode: z.string().length(3, '請輸入 3 碼銀行代號'),
-  bankBranch: z.string().min(2, '請輸入分行名稱'),
-  bankAccount: z.string().min(10, '請輸入完整帳號').max(16, '帳號格式錯誤'),
-  accountName: z.string().min(2, '請輸入戶名'),
-  note: z.string().optional(),
-})
+function buildWithdrawSchema(maxAmount: number) {
+  return z.object({
+    amount: z
+      .number()
+      .min(MIN_WITHDRAWAL, `最低請款金額為 NT$ ${MIN_WITHDRAWAL.toLocaleString()}`)
+      .max(maxAmount, `超過可用餘額 NT$ ${maxAmount.toLocaleString()}`),
+    bankCode: z.string().length(3, '請輸入 3 碼銀行代號'),
+    bankBranch: z.string().min(2, '請輸入分行名稱'),
+    bankAccount: z.string().min(10, '請輸入完整帳號').max(16, '帳號格式錯誤'),
+    bankAccountName: z.string().min(2, '請輸入戶名'),
+    note: z.string().optional(),
+  })
+}
 
-type WithdrawFormData = z.infer<typeof withdrawSchema>
+interface AmbassadorBankInfo {
+  bankCode: string
+  bankBranch: string
+  bankAccount: string
+  bankAccountName: string
+}
 
-const WITHDRAWAL_HISTORY = [
-  { id: 'w001', amount: 3198, status: 'PAID', createdAt: '2025-04-30', paidAt: '2025-05-05' },
-]
+interface Withdrawal {
+  id: string
+  withdrawalNumber: string
+  amount: number
+  netAmount: number
+  status: string
+  requestedAt: string
+}
 
-export function WithdrawForm() {
+interface Props {
+  availableBalance: number
+  bankInfo: AmbassadorBankInfo
+  withdrawalHistory: Withdrawal[]
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  PENDING: '待審核',
+  APPROVED: '已核准',
+  PAID: '已撥款',
+  REJECTED: '已拒絕',
+}
+
+const STATUS_CLASS: Record<string, string> = {
+  PENDING: 'bg-amber-100 text-amber-700',
+  APPROVED: 'bg-blue-100 text-blue-700',
+  PAID: 'bg-green-100 text-green-700',
+  REJECTED: 'bg-red-100 text-red-700',
+}
+
+export function WithdrawForm({ availableBalance, bankInfo, withdrawalHistory }: Props) {
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [serverError, setServerError] = useState('')
+  const router = useRouter()
+
+  const schema = buildWithdrawSchema(availableBalance)
+  type WithdrawFormData = z.infer<typeof schema>
 
   const {
     register,
@@ -42,8 +79,14 @@ export function WithdrawForm() {
     watch,
     formState: { errors },
   } = useForm<WithdrawFormData>({
-    resolver: zodResolver(withdrawSchema),
-    defaultValues: { amount: AVAILABLE_BALANCE },
+    resolver: zodResolver(schema),
+    defaultValues: {
+      amount: availableBalance,
+      bankCode: bankInfo.bankCode,
+      bankBranch: bankInfo.bankBranch,
+      bankAccount: bankInfo.bankAccount,
+      bankAccountName: bankInfo.bankAccountName,
+    },
   })
 
   const amount = watch('amount') || 0
@@ -52,11 +95,25 @@ export function WithdrawForm() {
 
   async function onSubmit(data: WithdrawFormData) {
     setLoading(true)
-    // TODO: POST /api/ambassadors/withdraw
-    await new Promise((r) => setTimeout(r, 1000))
-    console.log('Withdraw:', data)
-    setSuccess(true)
-    setLoading(false)
+    setServerError('')
+    try {
+      const res = await fetch('/api/ambassador/withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) {
+        const json = await res.json()
+        setServerError(json.error || '送出失敗，請稍後再試')
+        return
+      }
+      setSuccess(true)
+      router.refresh()
+    } catch {
+      setServerError('網路錯誤，請稍後再試')
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (success) {
@@ -81,9 +138,16 @@ export function WithdrawForm() {
       {/* Balance card */}
       <div className="bg-gradient-to-r from-sky-500 to-violet-500 text-white rounded-2xl p-6">
         <p className="text-sm opacity-80">可用分潤餘額</p>
-        <p className="text-4xl font-bold mt-1">NT$ {AVAILABLE_BALANCE.toLocaleString()}</p>
+        <p className="text-4xl font-bold mt-1">NT$ {availableBalance.toLocaleString()}</p>
         <p className="text-xs opacity-70 mt-2">最低請款門檻：NT$ {MIN_WITHDRAWAL.toLocaleString()}</p>
       </div>
+
+      {availableBalance < MIN_WITHDRAWAL && (
+        <div className="flex gap-3 bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm text-gray-700">
+          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-gray-400" />
+          <p>可用餘額未達最低請款門檻（NT$ {MIN_WITHDRAWAL.toLocaleString()}），暫時無法請款。</p>
+        </div>
+      )}
 
       {/* Info banner */}
       <div className="flex gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
@@ -93,6 +157,12 @@ export function WithdrawForm() {
           <p>請款金額達 NT$ {TAX_THRESHOLD.toLocaleString()} 以上，依規定代扣 {TAX_RATE * 100}% 薪資所得稅。</p>
         </div>
       </div>
+
+      {serverError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
+          {serverError}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="bg-white border border-gray-100 rounded-2xl p-6 space-y-5">
         <h2 className="font-semibold text-gray-900 flex items-center gap-2">
@@ -105,6 +175,7 @@ export function WithdrawForm() {
             id="amount"
             type="number"
             className="mt-1"
+            disabled={availableBalance < MIN_WITHDRAWAL}
             {...register('amount', { valueAsNumber: true })}
           />
           {errors.amount && <p className="text-red-500 text-xs mt-1">{errors.amount.message}</p>}
@@ -148,9 +219,9 @@ export function WithdrawForm() {
         </div>
 
         <div>
-          <Label htmlFor="accountName">戶名</Label>
-          <Input id="accountName" placeholder="請輸入銀行帳戶戶名" className="mt-1" {...register('accountName')} />
-          {errors.accountName && <p className="text-red-500 text-xs mt-1">{errors.accountName.message}</p>}
+          <Label htmlFor="bankAccountName">戶名</Label>
+          <Input id="bankAccountName" placeholder="請輸入銀行帳戶戶名" className="mt-1" {...register('bankAccountName')} />
+          {errors.bankAccountName && <p className="text-red-500 text-xs mt-1">{errors.bankAccountName.message}</p>}
         </div>
 
         <div>
@@ -164,7 +235,13 @@ export function WithdrawForm() {
           <Input id="note" placeholder="如有特殊說明請填寫" className="mt-1" {...register('note')} />
         </div>
 
-        <Button type="submit" variant="brand" size="lg" className="w-full" disabled={loading}>
+        <Button
+          type="submit"
+          variant="brand"
+          size="lg"
+          className="w-full"
+          disabled={loading || availableBalance < MIN_WITHDRAWAL}
+        >
           {loading ? (
             <span className="flex items-center gap-2">
               <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4" />
@@ -177,24 +254,24 @@ export function WithdrawForm() {
       </form>
 
       {/* History */}
-      {WITHDRAWAL_HISTORY.length > 0 && (
+      {withdrawalHistory.length > 0 && (
         <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-50 flex items-center gap-2">
             <Clock className="w-4 h-4 text-gray-400" />
             <h2 className="font-semibold text-gray-900 text-sm">請款紀錄</h2>
           </div>
           <div className="divide-y divide-gray-50">
-            {WITHDRAWAL_HISTORY.map((w) => (
+            {withdrawalHistory.map((w) => (
               <div key={w.id} className="px-6 py-4 flex items-center justify-between text-sm">
                 <div>
                   <p className="font-medium text-gray-900">NT$ {w.amount.toLocaleString()}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">申請：{w.createdAt}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">#{w.withdrawalNumber}・{w.requestedAt}</p>
                 </div>
                 <div className="text-right">
-                  <span className="inline-block bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">
-                    已撥款
+                  <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_CLASS[w.status] || 'bg-gray-100 text-gray-600'}`}>
+                    {STATUS_LABEL[w.status] || w.status}
                   </span>
-                  <p className="text-xs text-gray-500 mt-0.5">{w.paidAt}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">實收 NT$ {w.netAmount.toLocaleString()}</p>
                 </div>
               </div>
             ))}
